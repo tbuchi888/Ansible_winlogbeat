@@ -1,0 +1,74 @@
+---
+- hosts: win
+# Don't gather hosts facts for performance
+  gather_facts: no
+  vars:
+# Elasticsearch hosts
+    elas_hosts: 192.168.33.100
+    elas_hosts_port: 9200
+# reinstall winlogbeat
+    reinstall: true
+
+
+# Setting the task
+  tasks:
+   - name: Preparing for Step Winlogbeat Stopped with ignore errors
+     win_service:
+       name: winlogbeat
+       start_mode: auto
+       state: stopped
+     ignore_errors: true
+     when: reinstall==true
+
+   - name: Preparing for Step Remove directory
+     raw: Remove-Item -Path C:\progra~1\winlogbeat\ -Force -Recurse -ErrorAction SilentlyContinue
+     ignore_errors: true
+     when: reinstall==true
+
+   - name: Preparing for Step Create work directory
+     win_file:
+       path: "C:/work/"
+       state: "directory"
+
+   - name: Preparing for Step Copy zip file of Winlogbeat
+     win_copy:
+       src: "files/winlogbeat-1.2.3-windows.zip"
+       dest: "C:/work/winlogbeat-1.2.3-windows.zip"
+
+   - name: Preparing for Step Copy PSCX msi
+     win_copy:
+       src: "files/pscx.msi"
+       dest: 'C:\work\pscx.msi'
+
+   - name: Preparing for Step Install PSCX
+     win_msi:
+       path: 'C:\work\pscx.msi'
+
+   - name: Preparing for Step Decompression zip file
+     win_unzip:
+       src: "C:/work/winlogbeat-1.2.3-windows.zip"
+       dest: "C:/work/winlogbeat"
+
+   - name: Preparing for Step Move directory
+     raw: Move-Item -Path "C:\work\winlogbeat\winlogbeat-1.2.3-windows\" -Destination "C:\progra~1\winlogbeat\"
+
+   - name: Preparing for Step Change config of Winlogbeat
+     win_template:
+       src: templates/winlogbeat.yml.j2
+       dest: C:/progra~1/winlogbeat/winlogbeat.yml
+
+   - name: Winlogbeat Step1 Installing Winlogbeat
+     raw: PowerShell.exe -ExecutionPolicy UnRestricted -File C:\progra~1\winlogbeat\install-service-winlogbeat.ps1
+
+   - name: Winlogbeat Step2 Configuring Winlogbeat
+     raw: C:\progra~1\winlogbeat\winlogbeat.exe -c C:\progra~1\winlogbeat\winlogbeat.yml -configtest -e
+
+   #  Skip Winlogbeat Step3 Configuring Winlogbeat to Use Logstash
+
+   - name: Winlogbeat Step4 Loading the Index Template in Elasticsearch
+     raw: Invoke-WebRequest -Method Put -InFile C:\progra~1\winlogbeat\winlogbeat.template.json -Uri http://{{ elas_hosts }}:{{ elas_hosts_port }}/_template/winlogbeat?pretty -UseBasicParsing
+   - name: Winlogbeat Step5 Starting Winlogbeat
+     win_service:
+       name: winlogbeat
+       start_mode: auto
+       state: started
