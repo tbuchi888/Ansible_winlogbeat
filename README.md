@@ -1,4 +1,4 @@
-# Ansible_winlogbeat
+# ansible_winlogbeat
 This is playbook to install winlogbeat on Windows server 2012.
 I made this playbook in reference to the contents of the following official sites.
 https://www.elastic.co/guide/en/beats/winlogbeat/current/winlogbeat-getting-started.html
